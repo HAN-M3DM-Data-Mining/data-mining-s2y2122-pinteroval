@@ -1,8 +1,8 @@
 ---
 title: "Assigment - kNN DIY"
 author:
-  - name author here - Author
-  - name reviewer here - Reviewer
+  - name author here - Kelvin Wardenaar
+  - name reviewer here - Lucie Pinterová
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
    html_notebook:
@@ -10,6 +10,7 @@ output:
     toc_depth: 2
 ---
 
+# Setup - Packages
 
 ```{r}
 library(tidyverse)
@@ -18,7 +19,214 @@ library(class)
 library(caret)
 ```
 
+# Load Data
+
+```{r}
+url <- "https://raw.githubusercontent.com/HAN-M3DM-Data-Mining/data-mining-s2y2122-KelvinWardenaar/master/datasets/KNN-occupancy.csv"
+rawDF <- read_csv(url)
+```
+
+# Basic Information About Dataset
+
+```{r}
+str(rawDF)
+```
+
+# Removing Data That Isn't Relevent
+##changed -2 to -1 (because dates are not relevant)
+
+```{r}
+cleanDF <- rawDF[-1]
+head(cleanDF)
+```
+
+# Generate The Outcomes We Would Like To Predict
+
+```{r}
+cntDiag <- table(cleanDF$Occupancy)
+propDiag <- round(prop.table(cntDiag) * 100 , digits = 1)
+
+cntDiag
+```
+
+# Converting Them To Percentages
+
+```{r}
+propDiag
+```
+
+#
+##fixed error in releval.factor -> "yes" doesnt exist
+```{r}
+cleanDF$Occupancy <- factor(cleanDF$Occupancy, levels = c("1", "0"), labels = c("Yes", "No")) %>% relevel("No")
+head(cleanDF, 10)
+```
+
+# Summerize The Data
+
+```{r}
+summary(cleanDF)
+```
+
+# Creating a Normalize Funtion and Creating Testsets
+
+```{r}
+normalize <- function(x) { # Function takes in a vector
+  return ((x - min(x)) / (max(x) - min(x))) # distance of item value - minimum vector value divided by the range of all vector values
+}
+
+testSet1 <- c(1:5)
+testSet2 <- c(1:5) * 10
+
+cat("testSet1:", testSet1, "\n")
+cat("testSet2:", testSet2, "\n")
+```
+
+# Using The Normalize Function On Testsets
+
+```{r}
+cat("Normalized testSet1:", normalize(testSet1), "\n")
+cat("Normalized testSet2:", normalize(testSet1), "\n")
+```
+
+# Creating Vectors
+## Removed the occupancy
+
+```{r}
+nCols <- dim(cleanDF)[2]
+cleanDF_n <- sapply(1:(nCols-1),
+                    function(x) {
+  normalize(cleanDF[,x])
+}) %>% as.data.frame()
+
+summary(cleanDF_n)
+```
+
+# Creating Feats
+
+```{r}
+trainDF_feat <- cleanDF_n[1:5000,  ]
+testDF_feat <- cleanDF_n[5001:8143,  ]
+```
+
+# Creating Labels
+
+```{r}
+trainDF_labels <- cleanDF[1:5000,  6]
+testDF_labels <- cleanDF[5001:8143,  6]
+```
+
+# Running KNN
+
+```{r}
+cleanDF_test_pred <- knn(train = as.matrix(trainDF_feat), test = as.matrix(testDF_feat), cl = as.matrix(trainDF_labels), k = 31)
+head(cleanDF_test_pred)
+```
+
+# Visualizing It With a Confusion Matrix
+
+```{r}
+confusionMatrix(cleanDF_test_pred, testDF_labels[[1]], positive = NULL, dnn = c("Prediction", "True"))
+```
+
 ---
+
+#Answers
+
+# Setup - Packages
+```{r}
+library(tidyverse)
+library(googlesheets4)
+library(class)
+library(caret)
+```
+
+# Load Data
+
+```{r}
+url <- "https://raw.githubusercontent.com/HAN-M3DM-Data-Mining/data-mining-s2y2122-KelvinWardenaar/master/datasets/KNN-occupancy.csv"
+```
+
+```{r}
+rawDF <- read_csv(url)
+```
+
+```{r}
+str(rawDF)
+```
+
+```{r}
+cleanDF <- rawDF[-1]
+head(cleanDF)
+```
+
+```{r}
+cntDiag <- table(cleanDF$Occupancy)
+propDiag <- round(prop.table(cntDiag) * 100 , digits = 1)
+
+cntDiag
+```
+
+```{r}
+propDiag
+```
+
+```{r}
+cleanDF$Occupancy <- factor(cleanDF$Occupancy, levels = c("1", "0"), labels = c("Yes", "No")) %>% relevel("No")
+head(cleanDF, 10)
+```
+
+```{r}
+summary(cleanDF)
+```
+
+```{r}
+normalize <- function(x) { # Function takes in a vector
+  return ((x - min(x)) / (max(x) - min(x))) # distance of item value - minimum vector value divided by the range of all vector values
+}
+
+testSet1 <- c(1:5)
+testSet2 <- c(1:5) * 10
+
+cat("testSet1:", testSet1, "\n")
+cat("testSet2:", testSet2, "\n")
+```
+
+```{r}
+cat("Normalized testSet1:", normalize(testSet1), "\n")
+cat("Normalized testSet2:", normalize(testSet1), "\n")
+```
+
+```{r}
+nCols <- dim(cleanDF)[2]
+cleanDF_n <- sapply(1:(nCols-1),
+                    function(x) {
+  normalize(cleanDF[,x])
+}) %>% as.data.frame()
+
+summary(cleanDF_n)
+```
+
+```{r}
+trainDF_feat <- cleanDF_n[1:5000,  ]
+testDF_feat <- cleanDF_n[5001:8143,  ]
+```
+
+
+```{r}
+trainDF_labels <- cleanDF[1:5000,  6]
+testDF_labels <- cleanDF[5001:8143,  6]
+```
+
+```{r}
+cleanDF_test_pred <- knn(train = as.matrix(trainDF_feat), test = as.matrix(testDF_feat), cl = as.matrix(trainDF_labels), k = 31)
+head(cleanDF_test_pred)
+```
+
+```{r}
+confusionMatrix(cleanDF_test_pred, testDF_labels[[1]], positive = NULL, dnn = c("Prediction", "True"))
+```
+
 
 Choose a suitable dataset from [this](https://github.com/HAN-M3DM-Data-Mining/assignments/tree/master/datasets) folder and train  your own kNN model. Follow all the steps from the CRISP-DM model.
 
