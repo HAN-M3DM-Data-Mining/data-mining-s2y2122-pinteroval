@@ -1,9 +1,9 @@
 ---
 title: "Assigment - Naive Bayes DIY"
 author:
-  - name author here - Author
-  - name reviewer here - Reviewer
-date: "`r format(Sys.time(), '%d %B, %Y')`"
+  - name author here - Lucie Pinterová
+  - name reviewer here - Kelvin Wardenaar
+date: 13/3/2022
 output:
    html_notebook:
     toc: true
@@ -19,22 +19,147 @@ library(e1071)
 ```
 ---
 
-Choose a suitable dataset from [this](https://github.com/HAN-M3DM-Data-Mining/assignments/tree/master/datasets) folder and train your own Naive Bayes model. Follow all the steps from the CRISP-DM model.
-
 
 ## Business Understanding
-text and code here
+
+The main goal is to make a hate speech detection model by using a Naive Bayes classifier.
+
+The Naive Bayes is a classification algorithm that is suitable for binary and multiclass classification. (Patel, 2021)
+
+It is useful for making predictions and forecasting data based on historical results. (Patel, 2021)
 
 ## Data Understanding
-text and code here
+
+The data we will be using comes from private github classroom - the orginal source is not specified.
+
+It contains a set of news (title, author,text) that are labeled with 0 and 1 (fake /true)
+
+```{r}
+url <- "https://raw.githubusercontent.com/HAN-M3DM-Data-Mining/data-mining-s2y2122-pinteroval/master/datasets/NB-fakenews.csv"
+rawDF <- read_csv(url)
+View(rawDF)
+```
+
+#Exploring and describing data
+```{r}
+
+str(rawDF)
+head(rawDF)
+
+```
+-> The dataset has 5 variables (columns) and 5572 observations (rows).
+
+-> Columns types:
+
+  ..   id = col_double(),
+  ..   title = col_character(),
+  ..   author = col_character(),
+  ..   text = col_character(),
+  ..   label = col_double()
+
+```{r}
+rawDF$label <- rawDF$label %>% factor %>% relevel("0")
+class(rawDF$label)
+```
+
 
 ## Data Preparation
-text and code here
 
-## Modeling
-text and code here
+#Shrinking the dataset (because it is too big for easy processing)
+```{r}
+rawDF <- rawDF [-c(6000:20800),]
+```
 
-## Evaluation and Deployment
-text and code here
 
-reviewer adds suggestions for improving the model
+# Creating a corpus, which refers to a collection of text documents by using the corpus () function
+
+```{r}
+rawCorpus <- Corpus(VectorSource(rawDF$text))
+inspect(rawCorpus[1:3])
+```
+
+
+# Cleaning of the corpus (everything to lowercase, removing numbers)
+```{r}
+cleanCorpus <- rawCorpus %>% tm_map(tolower) %>% tm_map(removeNumbers)
+```
+
+#Removing items that are not useful for the model (but, and, punctation...)
+```{r}
+cleanCorpus <- cleanCorpus %>% tm_map(tolower) %>% tm_map(removeWords, stopwords()) %>% tm_map(removePunctuation)
+```
+
+#Removing additional whitespace
+```{r}
+cleanCorpus <- cleanCorpus %>% tm_map(stripWhitespace)
+```
+
+# Inspecting the corpus by romparing it to the raw version
+```{r}
+tibble(Raw = rawCorpus$content[1:3], Clean = cleanCorpus$content[1:3])
+```
+# Transforming the messages to a matrix
+```{r}
+cleanDTM <- cleanCorpus %>% DocumentTermMatrix
+inspect(cleanDTM)
+```
+
+# Split dataset to train and test sets (70%, 30%)
+```{r}
+# Create split indices
+set.seed(1234)
+trainIndex <- createDataPartition(rawDF$label, p = .70, 
+                                  list = FALSE, 
+                                  times = 1)
+head(trainIndex)
+```
+```{r}
+# Apply split indices to DF
+trainDF <- rawDF[trainIndex, ]
+testDF <- rawDF[-trainIndex, ]
+
+# Apply split indices to Corpus
+trainCorpus <- cleanCorpus[trainIndex]
+testCorpus <- cleanCorpus[-trainIndex]
+
+# Apply split indices to DTM
+trainDTM <- cleanDTM[trainIndex, ]
+testDTM <- cleanDTM[-trainIndex, ]
+```
+
+#Eliminate words with low frequencies
+```{r}
+freqWords <- trainDTM %>% findFreqTerms(5)
+trainDTM <-  DocumentTermMatrix(trainCorpus, list(dictionary = freqWords))
+testDTM <-  DocumentTermMatrix(testCorpus, list(dictionary = freqWords))
+```
+
+# transform the counts into a factor that  indicates whether the word appears in the document or not
+```{r}
+# building a function 
+convert_counts <- function(x) {
+  x <- ifelse(x > 0, 1, 0) %>% factor(levels = c(0,1), labels = c("No", "Yes"))
+}
+# applying it to columns
+nColsDTM <- dim(trainDTM)[2]
+trainDTM <- apply(trainDTM, MARGIN = 2, convert_counts)
+testDTM <- apply(testDTM, MARGIN = 2, convert_counts)
+
+head(trainDTM[,1:10])
+```
+
+## Modeling and Evaluation
+
+```{r}
+#using the naiveBayes() function to take in the features and labels of our training dataset and returns a trained model
+
+nbayesModel <-  naiveBayes(trainDTM, trainDF$label, laplace = 1)
+```
+
+
+```{r}
+#generating a vector of predictions
+predFakeN <- predict(nbayesModel, testDTM)
+
+#using a confusion matrix to analyze the performance of the model
+confusionMatrix(predFakeN, testDF$label, positive = "1", dnn = c("Prediction", "True"))
